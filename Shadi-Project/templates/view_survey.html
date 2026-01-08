@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ survey.title }} - Panchayat Survey{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 900px; margin: 2rem auto; padding: 0 1.5rem;">
+    <div class="section-header" style="text-align: center; margin-bottom: 2rem;">
+        <h1 class="section-title">{{ survey.title }}</h1>
+        <p class="section-subtitle" style="margin-top: 0.5rem;">{{ survey.description }}</p>
+    </div>
+
+    {% if has_responded %}
+    <div class="card">
+        <div class="card-body" style="text-align: center; padding: 4rem 2rem;">
+            <div style="background: var(--gray-bg); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <h2 style="font-size: 1.5rem; margin-bottom: 0.5rem;">Thank You!</h2>
+            <p style="color: var(--gray-muted);">Your response has been recorded successfully.</p>
+            <a href="{% url 'user_dashboard' %}" class="btn btn-primary" style="margin-top: 2rem;">Back to Dashboard</a>
+        </div>
+    </div>
+    {% else %}
+    
+    <div class="step-indicator" id="stepIndicator" style="margin-bottom: 2rem;"></div>
+
+    <form id="surveyForm">
+        {% csrf_token %}
+        <div id="surveySteps" class="card"></div>
+
+        <div style="margin-top: 2rem; display: flex; justify-content: space-between;">
+            <button type="button" id="prevBtn" class="btn btn-outline" style="visibility: hidden;" onclick="changeStep(-1)">Previous</button>
+            <button type="button" id="nextBtn" class="btn btn-primary" onclick="changeStep(1)">Next</button>
+            <button type="submit" id="submitBtn" class="btn btn-primary" style="display: none;">Submit Response</button>
+        </div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const surveyData = {{ survey.questions|safe }};
+let currentStep = 0;
+let steps = [];
+let surveyAnswers = {};
+
+function initSurvey() {
+    // Only standard questions go in the first step
+    const standardQuestions = surveyData.filter(q => q.type === 'standard');
+    steps = [{
+        title: 'General Information',
+        questions: standardQuestions
+    }];
+    renderStep();
+}
+
+function renderStep() {
+    const step = steps[currentStep];
+    const container = document.getElementById('surveySteps');
+    
+    let html = `<div class="card-body">`;
+    html += `<h2 style="font-size: 1.25rem; margin-bottom: 1.5rem; color: var(--panchayat-green); border-bottom: 1px solid var(--gray-border); padding-bottom: 0.5rem;">${step.title}</h2>`;
+    
+    step.questions.forEach(q => {
+        const val = surveyAnswers[q.id] || '';
+        html += `<div class="form-group" style="margin-bottom: 1.5rem;">
+            <label class="form-label">${q.text || q.repeat_label || 'Question'}</label>`;
+            
+        if (q.response_type === 'text' || q.type === 'text') {
+            html += `<input type="text" class="form-control" name="${q.id}" value="${val}" required>`;
+        } else if (q.response_type === 'number' || q.type === 'number') {
+            // Check if this is a repeater source question
+            const isRepeaterSource = surveyData.some(rq => rq.type === 'repeater' && rq.repeat_source === q.id);
+            const onChangeHandler = isRepeaterSource ? `onchange="handleRepeaterSourceChange(${q.id}, this.value)"` : '';
+            html += `<input type="number" class="form-control" name="${q.id}" id="q_${q.id}" value="${val}" required ${onChangeHandler} min="0">`;
+        } else if (q.response_type === 'textarea' || q.type === 'textarea') {
+            html += `<textarea class="form-control" name="${q.id}" required>${val}</textarea>`;
+        } else if (q.response_type === 'radio' || q.type === 'radio') {
+            const options = q.options || [];
+            options.forEach(opt => {
+                const checked = val === opt ? 'checked' : '';
+                html += `<label style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; cursor: pointer; padding: 0.5rem; border-radius: 8px; transition: background 0.2s;" onmouseover="this.style.background='var(--gray-bg)'" onmouseout="this.style.background='transparent'">
+                    <input type="radio" name="${q.id}" value="${opt}" ${checked} required>
+                    <span>${opt}</span>
+                </label>`;
+            });
+        }
+        html += `</div>`;
+    });
+    html += `</div>`;
+    container.innerHTML = html;
+    
+    updateNavigation();
+}
+
+function handleRepeaterSourceChange(sourceId, value) {
+    // Save the value immediately
+    surveyAnswers[sourceId] = value;
+    
+    // If we're on step 0, rebuild the steps
+    if (currentStep === 0) {
+        rebuildRepeaterSteps();
+    }
+}
+
+function rebuildRepeaterSteps() {
+    steps = steps.slice(0, 1); // Keep only first step
+    
+    surveyData.forEach(q => {
+        if (q.type === 'repeater') {
+            let count = 0;
+            const sourceKey = q.repeat_source;
+            
+            // Try all possible key formats
+            if (surveyAnswers[sourceKey] !== undefined) {
+                count = parseInt(surveyAnswers[sourceKey]) || 0;
+            } else if (surveyAnswers[sourceKey.toString()] !== undefined) {
+                count = parseInt(surveyAnswers[sourceKey.toString()]) || 0;
+            } else if (surveyAnswers['q' + sourceKey] !== undefined) {
+                count = parseInt(surveyAnswers['q' + sourceKey]) || 0;
+            } else if (surveyAnswers['q' + sourceKey.toString()] !== undefined) {
+                count = parseInt(surveyAnswers['q' + sourceKey.toString()]) || 0;
+            }
+            
+            if (count > 0 && q.sub_questions && q.sub_questions.length > 0) {
+                for (let i = 0; i < count; i++) {
+                    steps.push({
+                        title: `${q.repeat_label} #${i + 1}`,
+                        questions: q.sub_questions.map((sq, idx) => ({
+                            ...sq,
+                            id: `r${q.id}_${i}_${idx}`,
+                            response_type: sq.type || 'text'
+                        }))
+                    });
+                }
+            }
+        }
+    });
+    
+    // Update navigation to reflect new step count
+    updateNavigation();
+}
+
+function updateNavigation() {
+    document.getElementById('prevBtn').style.visibility = currentStep > 0 ? 'visible' : 'hidden';
+    
+    if (currentStep === steps.length - 1) {
+        document.getElementById('nextBtn').style.display = 'none';
+        document.getElementById('submitBtn').style.display = 'block';
+    } else {
+        document.getElementById('nextBtn').style.display = 'block';
+        document.getElementById('submitBtn').style.display = 'none';
+    }
+    
+    const indicator = document.getElementById('stepIndicator');
+    indicator.innerHTML = steps.map((_, i) => `
+        <div class="step ${i === currentStep ? 'active' : (i < currentStep ? 'completed' : '')}">${i + 1}</div>
+    `).join('');
+}
+
+function changeStep(delta) {
+    if (delta === 1) {
+        const form = document.getElementById('surveyForm');
+        if (!form.reportValidity()) return;
+        
+        // Save answers from current step
+        const inputs = form.querySelectorAll('input, textarea, select');
+        inputs.forEach(input => {
+            if (input.type === 'radio') {
+                if (input.checked) surveyAnswers[input.name] = input.value;
+            } else {
+                surveyAnswers[input.name] = input.value;
+            }
+        });
+
+        // If at first step, rebuild repeater steps
+        if (currentStep === 0) {
+            rebuildRepeaterSteps();
+        }
+    }
+
+    currentStep += delta;
+    renderStep();
+    window.scrollTo(0, 0);
+}
+
+document.getElementById('surveyForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // Save final step answers
+    const inputs = this.querySelectorAll('input, textarea, select');
+    inputs.forEach(input => {
+        if (input.type === 'radio') {
+            if (input.checked) surveyAnswers[input.name] = input.value;
+        } else {
+            surveyAnswers[input.name] = input.value;
+        }
+    });
+
+    try {
+        const response = await fetch('{% url "submit_survey" survey.id %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify(surveyAnswers)
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error(error);
+        alert('Failed to submit survey');
+    }
+});
+
+initSurvey();
+</script>
+{% endblock %}

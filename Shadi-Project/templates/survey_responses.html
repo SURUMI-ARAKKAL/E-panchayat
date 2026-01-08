@@ -1,0 +1,89 @@
+{% extends 'admin_base.html' %}
+{% load survey_filters %}
+
+{% block title %}Survey Responses - {{ survey.title }}{% endblock %}
+
+{% block admin_content %}
+<div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <h1 class="section-title">{{ survey.title }} - Responses</h1>
+        <p class="section-subtitle">Detailed view of individual citizen submissions</p>
+    </div>
+    <div style="display: flex; gap: 1rem;">
+        <a href="{% url 'survey_report' survey.id %}" class="btn btn-primary">Tabular View / Report</a>
+        <a href="{% url 'admin_dashboard' %}" class="btn btn-outline">Back</a>
+    </div>
+</div>
+
+<div style="margin-bottom: 1.5rem;">
+    <span class="badge badge-success">Total Submissions: {{ responses.count }}</span>
+</div>
+
+{% if responses %}
+<div style="display: grid; gap: 1.5rem;">
+    {% for response in responses %}
+    <div class="card">
+        <div class="card-header" style="background: var(--gray-bg);">
+            <div style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                {{ response.user.username }}
+            </div>
+            <div style="font-size: 0.85rem; color: var(--gray-muted);">
+                Submitted on {{ response.submitted_at|date:"M d, Y H:i" }}
+            </div>
+        </div>
+        <div class="card-body">
+            {% for question in survey.questions %}
+            <div style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--gray-bg);">
+                <div style="font-size: 0.85rem; color: var(--gray-muted); margin-bottom: 0.25rem;">Question {{ forloop.counter }}</div>
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">
+                    {% if question.text %}{{ question.text }}{% else %}{{ question.repeat_label }}{% endif %}
+                </div>
+                <div style="background: var(--gray-bg); padding: 0.75rem 1rem; border-radius: 8px;">
+                    {% with q_id=question.id|stringformat:"s" %}
+                        {% if question.type == 'standard' %}
+                            {% with answer=response.processed_answers|get_item:q_id %}
+                                {% if answer %}
+                                    {{ answer }}
+                                {% else %}
+                                    <span style="color: var(--gray-muted); font-style: italic;">(No answer provided)</span>
+                                {% endif %}
+                            {% endwith %}
+                        {% else %}
+                            {% with repeater_members=response.repeater_data|get_item:q_id %}
+                            <div style="color: var(--panchayat-green); font-weight: 700; margin-bottom: 0.75rem;">
+                                Total: {{ repeater_members|length }} {{ question.repeat_label }}s
+                            </div>
+                            {% if repeater_members %}
+                                {% for member_data in repeater_members %}
+                                <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem; border-left: 3px solid var(--panchayat-green);">
+                                    <div style="font-weight: 700; color: var(--panchayat-green); margin-bottom: 0.75rem; font-size: 0.9rem;">
+                                        {{ question.repeat_label }} #{{ member_data.member_number }}
+                                    </div>
+                                    {% for sub_answer in member_data.answers %}
+                                    <div style="margin-bottom: 0.75rem; padding-bottom: 0.75rem; {% if not forloop.last %}border-bottom: 1px solid var(--gray-border);{% endif %}">
+                                        <div style="font-size: 0.85rem; color: var(--gray-muted); margin-bottom: 0.25rem;">{{ sub_answer.question }}</div>
+                                        <div style="font-weight: 600;">{{ sub_answer.answer }}</div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endfor %}
+                            {% endif %}
+                            {% endwith %}
+                        {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body" style="text-align: center; padding: 3rem; color: var(--gray-muted);">
+        No responses have been submitted for this survey yet.
+    </div>
+</div>
+{% endif %}
+{% endblock %}

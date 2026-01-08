@@ -1,0 +1,35 @@
+{% extends 'admin_base.html' %}
+
+{% block title %}Post News - Panchayat System{% endblock %}
+
+{% block admin_content %}
+<div class="section-header">
+    <h1 class="section-title">Latest News</h1>
+    <p class="section-subtitle">Publish announcements for citizens to see on their dashboard</p>
+</div>
+
+<div class="card" style="max-width: 800px;">
+    <div class="card-header">
+        <h2 style="font-size: 1.1rem; font-weight: 700;">Create Announcement</h2>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label class="form-label" for="title">Title</label>
+                <input type="text" class="form-control" id="title" name="title" placeholder="e.g. Upcoming Vaccination Drive" required>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 2rem;">
+                <label class="form-label" for="content">Announcement Details</label>
+                <textarea class="form-control" id="content" name="content" rows="8" placeholder="Enter the full announcement here..." required></textarea>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem;">Publish News</button>
+                <a href="{% url 'admin_dashboard' %}" class="btn btn-outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block title %}Citizen Dashboard - Panchayat System{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1100px; margin: 2rem auto;">
+    <div class="section-header">
+        <h1 class="section-title">Citizen Dashboard</h1>
+        <p class="section-subtitle">Welcome back, {{ user.username }}. Help us improve our Panchayat.</p>
+    </div>
+
+    <div class="card" style="margin-bottom: 2rem; border-left: 4px solid var(--accent);">
+        <div class="card-body">
+            <h2 style="font-size: 1.1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                Latest Announcements
+            </h2>
+            <div class="news-section" style="background: none; padding: 0;">
+                {% for news in news_items %}
+                <div class="news-item" style="border: none; padding: 0.75rem 0; border-bottom: 1px solid var(--gray-border);">
+                    <h3 style="font-size: 1rem; color: var(--panchayat-green);">{{ news.title }}</h3>
+                    <p style="font-size: 0.9rem; color: var(--gray-text);">{{ news.content }}</p>
+                    <div style="font-size: 0.75rem; color: var(--gray-muted); margin-top: 0.25rem;">{{ news.created_at|date:"M d, Y" }}</div>
+                </div>
+                {% empty %}
+                <p style="color: var(--gray-muted); font-size: 0.9rem;">No new announcements at this time.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="section-header" style="margin-bottom: 1rem;">
+        <h2 style="font-size: 1.25rem;">Active Surveys</h2>
+    </div>
+
+    <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+        {% for survey in surveys %}
+        <div class="card">
+            <div class="card-body" style="display: flex; flex-direction: column; height: 100%;">
+                <div style="margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem;">{{ survey.title }}</h3>
+                    <p style="color: var(--gray-muted); font-size: 0.875rem; line-height: 1.4;">{{ survey.description|truncatewords:20 }}</p>
+                </div>
+                
+                <div style="margin-top: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                        <span style="font-size: 0.75rem; color: var(--gray-muted);">📅 {{ survey.created_at|date:"M d" }}</span>
+                        {% if survey.id in user_responses %}
+                        <span class="badge badge-success">Completed</span>
+                        {% else %}
+                        <span class="badge badge-warning">Pending</span>
+                        {% endif %}
+                    </div>
+                    
+                    <a href="{% url 'view_survey' survey.id %}" class="btn {% if survey.id in user_responses %}btn-outline{% else %}btn-primary{% endif %}" style="width: 100%;">
+                        {% if survey.id in user_responses %}Review My Response{% else %}Start Survey{% endif %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 3rem;">
+            <p style="color: var(--gray-muted);">There are no active surveys for you at this time.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

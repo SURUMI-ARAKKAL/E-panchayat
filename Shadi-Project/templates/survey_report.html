@@ -1,0 +1,84 @@
+{% extends 'admin_base.html' %}
+{% load survey_filters %}
+
+{% block title %}Survey Report - {{ survey.title }}{% endblock %}
+
+{% block admin_content %}
+<div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <h1 class="section-title">{{ survey.title }} - Report</h1>
+        <p class="section-subtitle">Tabular view of all citizen responses</p>
+    </div>
+    <div style="display: flex; gap: 1rem;">
+        <a href="{% url 'export_responses' survey.id %}" class="btn btn-primary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download Excel (CSV)
+        </a>
+        <a href="{% url 'admin_dashboard' %}" class="btn btn-outline">Back</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body" style="padding: 0; overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; min-width: 800px;">
+            <thead>
+                <tr style="background: var(--gray-bg); border-bottom: 1px solid var(--gray-border);">
+                    <th style="padding: 1rem; text-align: left; font-size: 0.85rem; color: var(--gray-muted); width: 150px;">Citizen</th>
+                    <th style="padding: 1rem; text-align: left; font-size: 0.85rem; color: var(--gray-muted); width: 150px;">Date</th>
+                    {% for q in survey.questions %}
+                    <th style="padding: 1rem; text-align: left; font-size: 0.85rem; color: var(--gray-muted);">
+                        {% if q.text %}{{ q.text }}{% else %}{{ q.repeat_label }}{% endif %}
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for resp in responses %}
+                <tr style="border-bottom: 1px solid var(--gray-border); transition: background 0.2s;" onmouseover="this.style.background='var(--gray-bg)'" onmouseout="this.style.background='white'">
+                    <td style="padding: 1rem; font-weight: 600;">{{ resp.user }}</td>
+                    <td style="padding: 1rem; font-size: 0.85rem; color: var(--gray-muted);">{{ resp.submitted_at|date:"M d, H:i" }}</td>
+                    {% for q in survey.questions %}
+                    <td style="padding: 1rem; font-size: 0.9rem;">
+                        {% with q_id=q.id|stringformat:"s" %}
+                            {% if q.type == 'standard' %}
+                                {{ resp.answers|get_item:q_id|default:"-" }}
+                            {% else %}
+                                {% with member_count=resp.answers|get_item:q_id|default:"0" %}
+                                <div style="margin-bottom: 0.5rem;">
+                                    <span class="badge badge-success">{{ member_count }} {{ q.repeat_label }}s</span>
+                                </div>
+                                {% with repeater_members=resp.repeater_data|get_item:q_id %}
+                                {% if repeater_members %}
+                                    <div style="font-size: 0.8rem; color: var(--gray-muted);">
+                                        {% for member_data in repeater_members %}
+                                        <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: var(--gray-bg); border-radius: 4px;">
+                                            <strong>#{{ member_data.member_number }}:</strong>
+                                            {% for sub_answer in member_data.answers %}
+                                            <div style="margin-top: 0.25rem;">
+                                                <span style="color: var(--panchayat-green);">{{ sub_answer.question }}:</span> 
+                                                <span>{{ sub_answer.answer }}</span>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                {% endwith %}
+                                {% endwith %}
+                            {% endif %}
+                        {% endwith %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{{ survey.questions|length|add:2 }}" style="padding: 3rem; text-align: center; color: var(--gray-muted);">
+                        No responses collected yet.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

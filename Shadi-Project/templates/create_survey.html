@@ -1,0 +1,204 @@
+{% extends 'admin_base.html' %}
+
+{% block title %}Design Survey - Panchayat System{% endblock %}
+
+{% block admin_content %}
+<div class="section-header">
+    <h1 class="section-title">Design Survey</h1>
+    <p class="section-subtitle">Create a dynamic multi-step survey with conditional logic</p>
+</div>
+
+<form method="POST" id="surveyForm">
+    {% csrf_token %}
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-body">
+            <div class="form-group">
+                <label class="form-label">Survey Title</label>
+                <input type="text" class="form-control" name="title" placeholder="e.g., Family Health Assessment 2026" required>
+            </div>
+            <div class="form-group" style="margin-top: 1rem;">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" name="description" placeholder="Briefly explain the purpose of this survey..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div id="questionsContainer">
+        <!-- Questions will be added here -->
+    </div>
+
+    <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+        <button type="button" class="btn btn-outline" onclick="addQuestion('standard')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+            Add Standard Question
+        </button>
+        <button type="button" class="btn btn-outline" onclick="addQuestion('repeater')" style="border-color: var(--panchayat-green); color: var(--panchayat-green);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2.1l4 4-4 4"></path><path d="M3 12.2v-2a4 4 0 0 1 4-4h14"></path><path d="M7 21.9l-4-4 4-4"></path><path d="M21 11.8v2a4 4 0 0 1-4 4H3"></path></svg>
+            Add Repeating Section
+        </button>
+    </div>
+
+    <input type="hidden" id="questions" name="questions" value="[]">
+
+    <div style="margin-top: 3rem; border-top: 1px solid var(--gray-border); padding-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
+        <a href="{% url 'admin_dashboard' %}" class="btn btn-outline">Discard</a>
+        <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem;">Publish Survey</button>
+    </div>
+</form>
+
+<script>
+let questionCount = 0;
+
+function addQuestion(type = 'standard') {
+    questionCount++;
+    const container = document.getElementById('questionsContainer');
+    const questionDiv = document.createElement('div');
+    questionDiv.className = 'card';
+    questionDiv.style.marginBottom = '1rem';
+    questionDiv.id = `question-${questionCount}`;
+    questionDiv.dataset.type = type;
+    
+    if (type === 'standard') {
+        questionDiv.innerHTML = `
+            <div class="card-body">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                    <span class="badge badge-primary">Standard Question</span>
+                    <button type="button" class="btn btn-outline" style="padding: 0.25rem; color: var(--danger);" onclick="removeQuestion(${questionCount})">Remove</button>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Question Text</label>
+                    <input type="text" class="form-control question-text" placeholder="Enter your question" required>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Response Type</label>
+                        <select class="form-control question-type" onchange="toggleOptions(${questionCount})">
+                            <option value="text">Short Text</option>
+                            <option value="textarea">Long Text</option>
+                            <option value="number">Number</option>
+                            <option value="radio">Single Choice</option>
+                            <option value="checkbox">Multiple Choice</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="options-${questionCount}" style="display: none; margin-top: 1rem;">
+                    <label class="form-label">Options (one per line)</label>
+                    <textarea class="form-control question-options" placeholder="Option 1&#10;Option 2"></textarea>
+                </div>
+            </div>
+        `;
+    } else {
+        questionDiv.innerHTML = `
+            <div class="card-body" style="background: rgba(27, 94, 32, 0.02);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                    <span class="badge" style="background: var(--panchayat-green); color: white;">Repeating Section</span>
+                    <button type="button" class="btn btn-outline" style="padding: 0.25rem; color: var(--danger);" onclick="removeQuestion(${questionCount})">Remove</button>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--gray-muted); margin-bottom: 1rem;">This section will repeat based on the number chosen in a previous question.</p>
+                <div class="form-group">
+                    <label class="form-label">Repeat based on Question #</label>
+                    <input type="number" class="form-control repeat-source" placeholder="Enter question number (e.g. 1)" required>
+                </div>
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label class="form-label">Label for each item (e.g. Member)</label>
+                    <input type="text" class="form-control repeat-label" placeholder="Member" required>
+                </div>
+                <div style="margin-top: 1.5rem; border: 1px dashed var(--gray-border); padding: 1rem; border-radius: 8px;">
+                    <label class="form-label">Questions to repeat in this section</label>
+                    <div id="repeater-questions-${questionCount}"></div>
+                    <button type="button" class="btn btn-outline" onclick="addRepeaterSubQuestion(${questionCount})" style="font-size: 0.75rem; margin-top: 0.5rem;">+ Add Sub-Question</button>
+                </div>
+            </div>
+        `;
+    }
+    
+    container.appendChild(questionDiv);
+}
+
+function addRepeaterSubQuestion(parentId) {
+    const subContainer = document.getElementById(`repeater-questions-${parentId}`);
+    const subId = Date.now();
+    const subDiv = document.createElement('div');
+    subDiv.className = 'sub-question';
+    subDiv.style.padding = '1rem';
+    subDiv.style.background = 'white';
+    subDiv.style.border = '1px solid var(--gray-border)';
+    subDiv.style.borderRadius = '8px';
+    subDiv.style.marginBottom = '0.5rem';
+    
+    subDiv.innerHTML = `
+        <div class="form-group">
+            <input type="text" class="form-control sub-text" placeholder="Sub-question text" required>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">
+            <select class="form-control sub-type">
+                <option value="text">Short Text</option>
+                <option value="number">Number</option>
+                <option value="radio">Single Choice</option>
+            </select>
+            <input type="text" class="form-control sub-options" placeholder="Options (comma separated)">
+        </div>
+        <button type="button" class="btn btn-outline" style="color: var(--danger); font-size: 0.7rem; border: none; padding: 0.25rem;" onclick="this.parentElement.remove()">Remove</button>
+    `;
+    subContainer.appendChild(subDiv);
+}
+
+function toggleOptions(id) {
+    const type = document.querySelector(`#question-${id} .question-type`).value;
+    const optionsDiv = document.getElementById(`options-${id}`);
+    optionsDiv.style.display = (type === 'radio' || type === 'checkbox') ? 'block' : 'none';
+}
+
+function removeQuestion(id) {
+    document.getElementById(`question-${id}`).remove();
+}
+
+document.getElementById('surveyForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const questions = [];
+    const questionDivs = document.querySelectorAll('#questionsContainer > .card');
+    
+    questionDivs.forEach((div, index) => {
+        const type = div.dataset.type;
+        const qNum = index + 1;
+        
+        if (type === 'standard') {
+            const text = div.querySelector('.question-text').value;
+            const qType = div.querySelector('.question-type').value;
+            const options = div.querySelector('.question-options')?.value.split('\n').filter(o => o.trim()) || [];
+            
+            questions.push({
+                id: qNum,
+                type: 'standard',
+                text: text,
+                response_type: qType,
+                options: options
+            });
+        } else {
+            const source = div.querySelector('.repeat-source').value;
+            const label = div.querySelector('.repeat-label').value;
+            const subQuestions = [];
+            
+            div.querySelectorAll('.sub-question').forEach(sub => {
+                subQuestions.push({
+                    text: sub.querySelector('.sub-text').value,
+                    type: sub.querySelector('.sub-type').value,
+                    options: sub.querySelector('.sub-options').value.split(',').map(o => o.trim()).filter(o => o)
+                });
+            });
+            
+            questions.push({
+                id: qNum,
+                type: 'repeater',
+                repeat_source: parseInt(source),
+                repeat_label: label,
+                sub_questions: subQuestions
+            });
+        }
+    });
+    
+    document.getElementById('questions').value = JSON.stringify(questions);
+    this.submit();
+});
+</script>
+{% endblock %}
